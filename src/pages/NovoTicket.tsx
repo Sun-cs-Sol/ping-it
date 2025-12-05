@@ -202,6 +202,57 @@ export default function NovoTicket() {
 
       if (error) throw error;
 
+      // Send confirmation email to requester
+      try {
+        await supabase.functions.invoke('send-notification', {
+          body: {
+            type: 'ticket_created',
+            ticket: { id: data.id, protocolo: data.protocolo, titulo },
+            recipient: { email: user.email, name: profile?.nome || user.email },
+          },
+        });
+        console.log('[NovoTicket] Confirmation email sent to requester');
+      } catch (emailError) {
+        console.error('[NovoTicket] Error sending confirmation email:', emailError);
+        // Don't fail ticket creation if email fails
+      }
+
+      // Send alert to IT agents and admins
+      try {
+        const { data: itStaff } = await supabase
+          .from('profiles')
+          .select('email, nome')
+          .in('id', 
+            (await supabase
+              .from('user_roles')
+              .select('user_id')
+              .in('role', ['admin', 'agente_ti'])
+            ).data?.map(r => r.user_id) || []
+          );
+
+        if (itStaff && itStaff.length > 0) {
+          for (const agent of itStaff) {
+            await supabase.functions.invoke('send-notification', {
+              body: {
+                type: 'new_ticket_alert',
+                ticket: { 
+                  id: data.id, 
+                  protocolo: data.protocolo, 
+                  titulo, 
+                  descricao,
+                  solicitante: profile?.nome || user.email 
+                },
+                recipient: { email: agent.email, name: agent.nome },
+              },
+            });
+          }
+          console.log(`[NovoTicket] Alert sent to ${itStaff.length} IT staff members`);
+        }
+      } catch (alertError) {
+        console.error('[NovoTicket] Error sending IT alert:', alertError);
+        // Don't fail ticket creation if alert fails
+      }
+
       toast({
         title: 'Ticket criado!',
         description: `Protocolo: ${data.protocolo}`,

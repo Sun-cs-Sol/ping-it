@@ -252,6 +252,51 @@ export default function TicketWorkspace() {
       });
 
       setTicket((prev) => prev ? { ...prev, status: newStatus, agente_id: updateData.agente_id as string || prev.agente_id } : null);
+
+      // Send email notifications to requester
+      if (ticket?.solicitante?.email) {
+        try {
+          // Send status update email
+          await supabase.functions.invoke('send-notification', {
+            body: {
+              type: 'status_updated',
+              ticket: { 
+                id, 
+                protocolo: ticket.protocolo, 
+                titulo: ticket.titulo,
+                newStatus 
+              },
+              recipient: { 
+                email: ticket.solicitante.email, 
+                name: ticket.solicitante.nome 
+              },
+            },
+          });
+          console.log('[TicketWorkspace] Status update email sent');
+
+          // If resolved, send feedback request
+          if (newStatus === 'resolvido') {
+            await supabase.functions.invoke('send-notification', {
+              body: {
+                type: 'feedback_request',
+                ticket: { 
+                  id, 
+                  protocolo: ticket.protocolo, 
+                  titulo: ticket.titulo 
+                },
+                recipient: { 
+                  email: ticket.solicitante.email, 
+                  name: ticket.solicitante.nome 
+                },
+              },
+            });
+            console.log('[TicketWorkspace] Feedback request email sent');
+          }
+        } catch (emailError) {
+          console.error('[TicketWorkspace] Error sending notification:', emailError);
+          // Don't fail status update if email fails
+        }
+      }
       
       toast({
         title: 'Status atualizado',
