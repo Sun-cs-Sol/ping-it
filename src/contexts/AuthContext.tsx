@@ -56,6 +56,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (roleData) {
         setRole(roleData.role as AppRole);
+      } else {
+        // Fallback: se não tem role no banco, assumir solicitante
+        console.warn('User has no role assigned, defaulting to solicitante');
+        setRole('solicitante');
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
