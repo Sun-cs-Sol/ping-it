@@ -231,9 +231,69 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { type, ticket, recipient }: NotificationRequest = await req.json();
+    // Verificar se o método é POST
+    if (req.method !== "POST") {
+      console.log(`[send-notification] Method not allowed: ${req.method}`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Método não permitido" }),
+        { status: 405, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Verificar Content-Type
+    const contentType = req.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      console.log(`[send-notification] Invalid content-type: ${contentType}`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Content-Type inválido" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Ler o corpo como texto primeiro para validar
+    const bodyText = await req.text();
+    
+    if (!bodyText || bodyText.trim() === '') {
+      console.log("[send-notification] Empty body received");
+      return new Response(
+        JSON.stringify({ success: false, error: "Corpo da requisição vazio" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Tentar fazer parse do JSON
+    let body: NotificationRequest;
+    try {
+      body = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error("[send-notification] JSON parse error:", parseError);
+      return new Response(
+        JSON.stringify({ success: false, error: "JSON inválido" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const { type, ticket, recipient } = body;
+
+    // Validar campos obrigatórios
+    if (!type || !ticket || !recipient) {
+      console.log("[send-notification] Missing required fields:", { type: !!type, ticket: !!ticket, recipient: !!recipient });
+      return new Response(
+        JSON.stringify({ success: false, error: "Campos obrigatórios faltando (type, ticket, recipient)" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!recipient.email) {
+      console.log("[send-notification] Missing recipient email");
+      return new Response(
+        JSON.stringify({ success: false, error: "Email do destinatário não informado" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     console.log(`[send-notification] Sending ${type} email to ${recipient.email}`);
+    console.log(`[send-notification] Ticket info:`, JSON.stringify(ticket));
 
     const { subject, html } = getEmailTemplate(type, ticket, recipient.name);
 
