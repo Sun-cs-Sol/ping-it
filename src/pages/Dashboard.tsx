@@ -101,7 +101,7 @@ export default function Dashboard() {
           prioridade,
           setor,
           created_at,
-          solicitante:profiles!tickets_solicitante_id_fkey(id, nome, foto_perfil)
+          solicitante_id
         `)
         .order('created_at', { ascending: false });
 
@@ -109,10 +109,32 @@ export default function Dashboard() {
         query = query.eq('status', statusFilter as TicketStatus);
       }
 
-      const { data, error } = await query.limit(50);
+      const { data: ticketsData, error } = await query.limit(50);
 
       if (error) throw error;
-      setTickets(data as unknown as TicketData[]);
+
+      // Fetch solicitante profiles separately
+      const solicitanteIds = [...new Set(ticketsData?.map(t => t.solicitante_id).filter(Boolean))];
+      
+      let profilesMap: Record<string, { id: string; nome: string; foto_perfil: string | null }> = {};
+      
+      if (solicitanteIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, nome, foto_perfil')
+          .in('id', solicitanteIds);
+        
+        profilesData?.forEach(p => {
+          profilesMap[p.id] = p;
+        });
+      }
+
+      const ticketsWithSolicitante = ticketsData?.map(t => ({
+        ...t,
+        solicitante: t.solicitante_id ? profilesMap[t.solicitante_id] || null : null,
+      }));
+
+      setTickets(ticketsWithSolicitante as unknown as TicketData[]);
     } catch (error) {
       console.error('Error fetching tickets:', error);
     } finally {

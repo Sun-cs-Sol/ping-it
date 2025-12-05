@@ -174,7 +174,7 @@ export default function TicketDetail() {
 
   const fetchTicket = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: ticketData, error: ticketError } = await supabase
         .from('tickets')
         .select(`
           id,
@@ -186,15 +186,41 @@ export default function TicketDetail() {
           setor,
           anexos,
           created_at,
-          solicitante:profiles!tickets_solicitante_id_fkey(id, nome, foto_perfil),
-          agente:profiles!tickets_agente_id_fkey(id, nome, foto_perfil)
+          solicitante_id,
+          agente_id
         `)
         .eq('id', id)
         .single();
 
-      if (error) throw error;
-      
-      setTicket(data as unknown as TicketData);
+      if (ticketError) throw ticketError;
+
+      // Fetch profiles separately to avoid FK cache issues
+      let solicitante = null;
+      let agente = null;
+
+      if (ticketData.solicitante_id) {
+        const { data: solicitanteData } = await supabase
+          .from('profiles')
+          .select('id, nome, foto_perfil')
+          .eq('id', ticketData.solicitante_id)
+          .maybeSingle();
+        solicitante = solicitanteData;
+      }
+
+      if (ticketData.agente_id) {
+        const { data: agenteData } = await supabase
+          .from('profiles')
+          .select('id, nome, foto_perfil')
+          .eq('id', ticketData.agente_id)
+          .maybeSingle();
+        agente = agenteData;
+      }
+
+      setTicket({
+        ...ticketData,
+        solicitante,
+        agente,
+      } as unknown as TicketData);
     } catch (error) {
       console.error('Error fetching ticket:', error);
       toast({
@@ -210,20 +236,42 @@ export default function TicketDetail() {
 
   const fetchInteractions = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: interactionsData, error } = await supabase
         .from('interactions')
         .select(`
           id,
           mensagem,
           tipo,
           created_at,
-          autor:profiles!interactions_autor_id_fkey(id, nome, foto_perfil)
+          autor_id
         `)
         .eq('ticket_id', id)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setInteractions(data as unknown as Interaction[]);
+
+      // Fetch author profiles separately
+      const autorIds = [...new Set(interactionsData?.map(i => i.autor_id).filter(Boolean))];
+      
+      let profilesMap: Record<string, { id: string; nome: string; foto_perfil: string | null }> = {};
+      
+      if (autorIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, nome, foto_perfil')
+          .in('id', autorIds);
+        
+        profilesData?.forEach(p => {
+          profilesMap[p.id] = p;
+        });
+      }
+
+      const interactionsWithAuthor = interactionsData?.map(i => ({
+        ...i,
+        autor: i.autor_id ? profilesMap[i.autor_id] || null : null,
+      }));
+
+      setInteractions(interactionsWithAuthor as unknown as Interaction[]);
     } catch (error) {
       console.error('Error fetching interactions:', error);
     }
