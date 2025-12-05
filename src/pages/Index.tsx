@@ -177,9 +177,7 @@ export default function Index() {
               <CardTitle>Meus Tickets</CardTitle>
               <CardDescription>Suas solicitações recentes</CardDescription>
             </div>
-            <Link to="/tickets">
-              <Button variant="ghost" size="sm">Ver todos</Button>
-            </Link>
+{/* Link removido - página /tickets não existe */}
           </CardHeader>
           <CardContent>
             {loading ? (
