@@ -208,11 +208,21 @@ export default function NovoTicket() {
       });
 
       navigate(`/ticket/${data.id}`);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error creating ticket:', error);
+      
+      let errorMessage = 'Não foi possível criar o ticket. Tente novamente.';
+      
+      // Check for network errors
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (error instanceof Error && error.message.includes('network')) {
+        errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      }
+      
       toast({
         title: 'Erro',
-        description: 'Não foi possível criar o ticket. Tente novamente.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
