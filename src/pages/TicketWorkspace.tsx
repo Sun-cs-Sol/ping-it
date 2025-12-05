@@ -170,7 +170,7 @@ export default function TicketWorkspace() {
 
   const fetchTicket = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: ticketData, error } = await supabase
         .from('tickets')
         .select(`
           id,
@@ -183,13 +183,28 @@ export default function TicketWorkspace() {
           anexos,
           created_at,
           agente_id,
-          solicitante:profiles!tickets_solicitante_id_fkey(id, nome, email, telefone, funcao, setor, foto_perfil)
+          solicitante_id
         `)
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      setTicket(data as unknown as TicketData);
+
+      // Fetch solicitante profile separately
+      let solicitante = null;
+      if (ticketData.solicitante_id) {
+        const { data: solicitanteData } = await supabase
+          .from('profiles')
+          .select('id, nome, email, telefone, funcao, setor, foto_perfil')
+          .eq('id', ticketData.solicitante_id)
+          .maybeSingle();
+        solicitante = solicitanteData;
+      }
+
+      setTicket({
+        ...ticketData,
+        solicitante,
+      } as unknown as TicketData);
     } catch (error) {
       console.error('Error fetching ticket:', error);
       navigate('/dashboard');
@@ -200,20 +215,42 @@ export default function TicketWorkspace() {
 
   const fetchInteractions = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: interactionsData, error } = await supabase
         .from('interactions')
         .select(`
           id,
           mensagem,
           tipo,
           created_at,
-          autor:profiles!interactions_autor_id_fkey(id, nome, foto_perfil)
+          autor_id
         `)
         .eq('ticket_id', id)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setInteractions(data as unknown as Interaction[]);
+
+      // Fetch author profiles separately
+      const autorIds = [...new Set(interactionsData?.map(i => i.autor_id).filter(Boolean))];
+      
+      let profilesMap: Record<string, { id: string; nome: string; foto_perfil: string | null }> = {};
+      
+      if (autorIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, nome, foto_perfil')
+          .in('id', autorIds);
+        
+        profilesData?.forEach(p => {
+          profilesMap[p.id] = p;
+        });
+      }
+
+      const interactionsWithAuthor = interactionsData?.map(i => ({
+        ...i,
+        autor: i.autor_id ? profilesMap[i.autor_id] || null : null,
+      }));
+
+      setInteractions(interactionsWithAuthor as unknown as Interaction[]);
     } catch (error) {
       console.error('Error fetching interactions:', error);
     }
