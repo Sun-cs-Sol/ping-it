@@ -101,26 +101,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     profileData: Partial<Profile>,
-    inviteToken?: string
+    _inviteToken?: string
   ) => {
-    let assignedRole: AppRole = 'solicitante';
-
-    if (inviteToken) {
-      const { data: invitation } = await supabase
-        .from('invitations')
-        .select('*')
-        .eq('token', inviteToken)
-        .eq('used', false)
-        .maybeSingle();
-
-      if (invitation && new Date(invitation.expires_at) > new Date()) {
-        assignedRole = invitation.role as AppRole;
-      }
-    }
+    // Role assignment is now handled server-side by the handle_new_user() trigger
+    // The trigger automatically:
+    // 1. Creates the profile
+    // 2. Checks for valid invitations and assigns the appropriate role
+    // 3. Marks invitations as used
 
     const redirectUrl = `${window.location.origin}/`;
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -131,43 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
 
-    if (error) return { error };
-
-    if (data.user) {
-      // Create profile
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        nome: profileData.nome || '',
-        email: email,
-        telefone: profileData.telefone,
-        funcao: profileData.funcao,
-        setor: profileData.setor,
-      });
-
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-      }
-
-      // Assign role
-      const { error: roleError } = await supabase.from('user_roles').insert({
-        user_id: data.user.id,
-        role: assignedRole,
-      });
-
-      if (roleError) {
-        console.error('Role assignment error:', roleError);
-      }
-
-      // Mark invitation as used
-      if (inviteToken) {
-        await supabase
-          .from('invitations')
-          .update({ used: true })
-          .eq('token', inviteToken);
-      }
-    }
-
-    return { error: null };
+    return { error };
   };
 
   const signInWithGoogle = async () => {
