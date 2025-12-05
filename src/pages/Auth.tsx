@@ -69,6 +69,11 @@ export default function Auth() {
     }
   }, [user, role, navigate]);
 
+  const isNetworkError = (error: Error | { message: string }) => {
+    const msg = error.message?.toLowerCase() || '';
+    return msg === 'failed to fetch' || msg.includes('networkerror') || msg.includes('network');
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -86,17 +91,28 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signIn(loginEmail, loginPassword);
-    setIsLoading(false);
+    try {
+      const { error } = await signIn(loginEmail, loginPassword);
 
-    if (error) {
+      if (error) {
+        toast({
+          title: isNetworkError(error) ? 'Erro de conexão' : 'Erro ao entrar',
+          description: isNetworkError(error)
+            ? 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.'
+            : error.message === 'Invalid login credentials' 
+              ? 'Email ou senha incorretos' 
+              : error.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
       toast({
-        title: 'Erro ao entrar',
-        description: error.message === 'Invalid login credentials' 
-          ? 'Email ou senha incorretos' 
-          : error.message,
+        title: 'Erro de conexão',
+        description: 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -124,46 +140,67 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signUp(
-      signupEmail,
-      signupPassword,
-      {
-        nome: signupNome,
-        telefone: signupTelefone || null,
-        funcao: signupFuncao || null,
-        setor: signupSetor || null,
-      },
-      inviteToken || undefined
-    );
-    setIsLoading(false);
+    try {
+      const { error } = await signUp(
+        signupEmail,
+        signupPassword,
+        {
+          nome: signupNome,
+          telefone: signupTelefone || null,
+          funcao: signupFuncao || null,
+          setor: signupSetor || null,
+        },
+        inviteToken || undefined
+      );
 
-    if (error) {
-      const errorMessage = error.message.includes('already registered')
-        ? 'Este email já está cadastrado'
-        : error.message;
+      if (error) {
+        toast({
+          title: isNetworkError(error) ? 'Erro de conexão' : 'Erro ao cadastrar',
+          description: isNetworkError(error)
+            ? 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.'
+            : error.message.includes('already registered')
+              ? 'Este email já está cadastrado'
+              : error.message,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Cadastro realizado!',
+          description: 'Você já pode acessar o sistema.',
+        });
+      }
+    } catch (err) {
       toast({
-        title: 'Erro ao cadastrar',
-        description: errorMessage,
+        title: 'Erro de conexão',
+        description: 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.',
         variant: 'destructive',
       });
-    } else {
-      toast({
-        title: 'Cadastro realizado!',
-        description: 'Você já pode acessar o sistema.',
-      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    const { error } = await signInWithGoogle();
-    if (error) {
-      setIsLoading(false);
+    try {
+      const { error } = await signInWithGoogle();
+      if (error) {
+        toast({
+          title: isNetworkError(error) ? 'Erro de conexão' : 'Erro ao entrar com Google',
+          description: isNetworkError(error)
+            ? 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.'
+            : error.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
       toast({
-        title: 'Erro ao entrar com Google',
-        description: error.message,
+        title: 'Erro de conexão',
+        description: 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
