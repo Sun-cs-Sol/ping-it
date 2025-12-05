@@ -120,18 +120,16 @@ export default function NovoTicket() {
     setAudioBlob(null);
   };
 
-  const uploadFile = async (file: File | Blob, path: string) => {
+  // Upload file and return only the storage path (not public URL)
+  const uploadFile = async (file: File | Blob, path: string): Promise<string> => {
     const { data, error } = await supabase.storage
       .from('attachments')
       .upload(path, file);
 
     if (error) throw error;
 
-    const { data: urlData } = supabase.storage
-      .from('attachments')
-      .getPublicUrl(data.path);
-
-    return urlData.publicUrl;
+    // Return just the path, not the public URL
+    return data.path;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -162,30 +160,30 @@ export default function NovoTicket() {
     setIsSubmitting(true);
 
     try {
-      // Upload attachments
+      // Upload attachments - store paths only
       const uploadedImages: string[] = [];
       const uploadedFiles: string[] = [];
-      let audioUrl: string | null = null;
+      let audioPath: string | null = null;
 
       for (const attachment of attachments) {
         const timestamp = Date.now();
         const path = `${user.id}/${timestamp}-${attachment.file.name}`;
-        const url = await uploadFile(attachment.file, path);
+        const storagePath = await uploadFile(attachment.file, path);
 
         if (attachment.type === 'image') {
-          uploadedImages.push(url);
+          uploadedImages.push(storagePath);
         } else {
-          uploadedFiles.push(url);
+          uploadedFiles.push(storagePath);
         }
       }
 
       if (audioBlob) {
         const timestamp = Date.now();
         const path = `${user.id}/${timestamp}-audio.webm`;
-        audioUrl = await uploadFile(audioBlob, path);
+        audioPath = await uploadFile(audioBlob, path);
       }
 
-      // Create ticket
+      // Create ticket with storage paths (not public URLs)
       const { data, error } = await supabase
         .from('tickets')
         .insert({
@@ -196,7 +194,7 @@ export default function NovoTicket() {
           anexos: {
             imagens: uploadedImages,
             arquivos: uploadedFiles,
-            audio: audioUrl,
+            audio: audioPath,
           },
         })
         .select('id, protocolo')

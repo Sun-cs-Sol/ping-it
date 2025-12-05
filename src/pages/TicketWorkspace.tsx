@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getSignedUrl, getSignedUrls } from '@/lib/storage';
 
 type TicketStatus = 'aberto' | 'em_andamento' | 'aguardando_resposta' | 'resolvido' | 'fechado';
 type TicketPriority = 'baixa' | 'media' | 'alta' | 'critica';
@@ -70,6 +71,12 @@ interface Interaction {
   } | null;
 }
 
+interface SignedUrls {
+  imagens: (string | null)[];
+  arquivos: (string | null)[];
+  audio: string | null;
+}
+
 const statusConfig: Record<TicketStatus, { label: string; color: string }> = {
   aberto: { label: 'Aberto', color: 'bg-status-open text-white' },
   em_andamento: { label: 'Em Andamento', color: 'bg-status-in-progress text-white' },
@@ -99,6 +106,7 @@ export default function TicketWorkspace() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingPriority, setUpdatingPriority] = useState(false);
+  const [signedUrls, setSignedUrls] = useState<SignedUrls>({ imagens: [], arquivos: [], audio: null });
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -117,6 +125,23 @@ export default function TicketWorkspace() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [interactions]);
+
+  // Fetch signed URLs when ticket loads
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      if (!ticket?.anexos) return;
+      
+      const [imagens, arquivos, audio] = await Promise.all([
+        getSignedUrls(ticket.anexos.imagens || []),
+        getSignedUrls(ticket.anexos.arquivos || []),
+        ticket.anexos.audio ? getSignedUrl(ticket.anexos.audio) : null,
+      ]);
+      
+      setSignedUrls({ imagens, arquivos, audio });
+    };
+    
+    fetchSignedUrls();
+  }, [ticket]);
 
   // Real-time subscription
   useEffect(() => {
@@ -334,6 +359,10 @@ export default function TicketWorkspace() {
     );
   }
 
+  const hasAttachments = signedUrls.imagens.some(Boolean) || 
+                         signedUrls.arquivos.some(Boolean) || 
+                         signedUrls.audio;
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
@@ -367,14 +396,12 @@ export default function TicketWorkspace() {
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{ticket.descricao}</p>
               
-              {/* Attachments */}
-              {(ticket.anexos.imagens.length > 0 || 
-                ticket.anexos.arquivos.length > 0 || 
-                ticket.anexos.audio) && (
+              {/* Attachments with signed URLs */}
+              {hasAttachments && (
                 <div className="space-y-3">
                   <p className="text-sm font-medium">Anexos:</p>
                   <div className="flex flex-wrap gap-2">
-                    {ticket.anexos.imagens.map((img, i) => (
+                    {signedUrls.imagens.map((img, i) => img && (
                       <a
                         key={i}
                         href={img}
@@ -389,7 +416,7 @@ export default function TicketWorkspace() {
                         />
                       </a>
                     ))}
-                    {ticket.anexos.arquivos.map((file, i) => (
+                    {signedUrls.arquivos.map((file, i) => file && (
                       <a
                         key={i}
                         href={file}
@@ -401,7 +428,7 @@ export default function TicketWorkspace() {
                         <span className="mt-1 text-xs">Arquivo</span>
                       </a>
                     ))}
-                    {ticket.anexos.audio && (
+                    {signedUrls.audio && (
                       <div className="flex items-center gap-2 rounded-lg border bg-muted p-3">
                         <Button
                           variant="ghost"
@@ -418,7 +445,7 @@ export default function TicketWorkspace() {
                         <span className="text-sm">Áudio do solicitante</span>
                         <audio
                           ref={audioRef}
-                          src={ticket.anexos.audio}
+                          src={signedUrls.audio}
                           onEnded={() => setIsPlaying(false)}
                         />
                       </div>

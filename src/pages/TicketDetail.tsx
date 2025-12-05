@@ -28,6 +28,7 @@ import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { getSignedUrl, getSignedUrls } from '@/lib/storage';
 
 type TicketStatus = 'aberto' | 'em_andamento' | 'aguardando_resposta' | 'resolvido' | 'fechado';
 
@@ -69,6 +70,12 @@ interface Interaction {
   } | null;
 }
 
+interface SignedUrls {
+  imagens: (string | null)[];
+  arquivos: (string | null)[];
+  audio: string | null;
+}
+
 const statusConfig: Record<TicketStatus, { label: string; color: string; icon: React.ReactNode }> = {
   aberto: { label: 'Aberto', color: 'bg-status-open text-white', icon: <AlertCircle className="h-4 w-4" /> },
   em_andamento: { label: 'Em Andamento', color: 'bg-status-in-progress text-white', icon: <Clock className="h-4 w-4" /> },
@@ -94,6 +101,7 @@ export default function TicketDetail() {
   const [feedbackComment, setFeedbackComment] = useState('');
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [hasFeedback, setHasFeedback] = useState(false);
+  const [signedUrls, setSignedUrls] = useState<SignedUrls>({ imagens: [], arquivos: [], audio: null });
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -109,6 +117,23 @@ export default function TicketDetail() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [interactions]);
+
+  // Fetch signed URLs when ticket loads
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      if (!ticket?.anexos) return;
+      
+      const [imagens, arquivos, audio] = await Promise.all([
+        getSignedUrls(ticket.anexos.imagens || []),
+        getSignedUrls(ticket.anexos.arquivos || []),
+        ticket.anexos.audio ? getSignedUrl(ticket.anexos.audio) : null,
+      ]);
+      
+      setSignedUrls({ imagens, arquivos, audio });
+    };
+    
+    fetchSignedUrls();
+  }, [ticket]);
 
   // Real-time subscription
   useEffect(() => {
@@ -319,6 +344,10 @@ export default function TicketDetail() {
                       ticket.solicitante?.id === user?.id && 
                       !hasFeedback;
 
+  const hasAttachments = signedUrls.imagens.some(Boolean) || 
+                         signedUrls.arquivos.some(Boolean) || 
+                         signedUrls.audio;
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
@@ -360,14 +389,12 @@ export default function TicketDetail() {
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">{ticket.descricao}</p>
             
-            {/* Attachments */}
-            {(ticket.anexos.imagens.length > 0 || 
-              ticket.anexos.arquivos.length > 0 || 
-              ticket.anexos.audio) && (
+            {/* Attachments with signed URLs */}
+            {hasAttachments && (
               <div className="space-y-3">
                 <p className="text-sm font-medium">Anexos:</p>
                 <div className="flex flex-wrap gap-2">
-                  {ticket.anexos.imagens.map((img, i) => (
+                  {signedUrls.imagens.map((img, i) => img && (
                     <a
                       key={i}
                       href={img}
@@ -382,7 +409,7 @@ export default function TicketDetail() {
                       />
                     </a>
                   ))}
-                  {ticket.anexos.arquivos.map((file, i) => (
+                  {signedUrls.arquivos.map((file, i) => file && (
                     <a
                       key={i}
                       href={file}
@@ -393,7 +420,7 @@ export default function TicketDetail() {
                       <FileText className="h-6 w-6 text-muted-foreground" />
                     </a>
                   ))}
-                  {ticket.anexos.audio && (
+                  {signedUrls.audio && (
                     <div className="flex items-center gap-2 rounded-lg border bg-muted p-2">
                       <Button
                         variant="ghost"
@@ -410,7 +437,7 @@ export default function TicketDetail() {
                       <span className="text-sm">Áudio</span>
                       <audio
                         ref={audioRef}
-                        src={ticket.anexos.audio}
+                        src={signedUrls.audio}
                         onEnded={() => setIsPlaying(false)}
                       />
                     </div>
