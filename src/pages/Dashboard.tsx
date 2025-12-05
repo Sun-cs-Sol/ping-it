@@ -19,7 +19,8 @@ import {
   BarChart3,
   Users,
   Star,
-  Filter
+  Filter,
+  Settings
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -199,6 +200,17 @@ export default function Dashboard() {
             <Badge variant="outline" className="hidden sm:flex">
               {role === 'admin' ? 'Administrador' : 'Agente TI'}
             </Badge>
+            {role === 'admin' && (
+              <Link to="/admin">
+                <Button variant="outline" size="sm" className="hidden sm:flex">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Administração
+                </Button>
+                <Button variant="outline" size="icon" className="sm:hidden">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </Link>
+            )}
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={profile?.foto_perfil || undefined} />

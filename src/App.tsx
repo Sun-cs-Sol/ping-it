@@ -11,6 +11,7 @@ import NovoTicket from "./pages/NovoTicket";
 import TicketDetail from "./pages/TicketDetail";
 import Dashboard from "./pages/Dashboard";
 import TicketWorkspace from "./pages/TicketWorkspace";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,6 +62,14 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={['agente_ti', 'admin']}>
                   <TicketWorkspace />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Admin />
                 </ProtectedRoute>
               }
             />
