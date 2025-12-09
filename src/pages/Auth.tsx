@@ -43,6 +43,8 @@ export default function Auth() {
   
   const [activeTab, setActiveTab] = useState(inviteToken ? 'signup' : 'login');
   const [isLoading, setIsLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
   
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
@@ -57,7 +59,7 @@ export default function Auth() {
   const [signupSetor, setSignupSetor] = useState('');
   const [signupNumAnyDesk, setSignupNumAnyDesk] = useState('');
 
-  const { signIn, signUp, signInWithGoogle, user, role } = useAuth();
+  const { signIn, signUp, signInWithGoogle, resetPassword, user, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -208,6 +210,44 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!resetEmail) {
+      toast({
+        title: 'Email obrigatório',
+        description: 'Digite seu email para recuperar a senha.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await resetPassword(resetEmail);
+      if (error) {
+        toast({
+          title: 'Erro',
+          description: error.message,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Email enviado!',
+          description: 'Verifique sua caixa de entrada para redefinir sua senha.',
+        });
+        setShowForgotPassword(false);
+        setResetEmail('');
+      }
+    } catch (err) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível enviar o email de recuperação.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
       <div className="w-full max-w-md animate-fade-in">
@@ -279,6 +319,43 @@ export default function Auth() {
                     ) : null}
                     Entrar
                   </Button>
+
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="w-full px-0 text-sm text-muted-foreground"
+                    onClick={() => setShowForgotPassword(!showForgotPassword)}
+                  >
+                    Esqueci minha senha
+                  </Button>
+
+                  {showForgotPassword && (
+                    <div className="space-y-3 rounded-lg border border-border bg-muted/50 p-4">
+                      <Label htmlFor="reset-email">Digite seu email para recuperar a senha:</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="reset-email"
+                          type="email"
+                          placeholder="seu@email.com"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <Button 
+                        type="button"
+                        className="w-full" 
+                        onClick={handleForgotPassword}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        Enviar link de recuperação
+                      </Button>
+                    </div>
+                  )}
                 </form>
 
                 <div className="relative">
