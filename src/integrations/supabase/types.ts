@@ -134,6 +134,7 @@ export type Database = {
           funcao: string | null
           id: string
           nome: string
+          num_anydesk: string | null
           setor: string | null
           telefone: string | null
           updated_at: string | null
@@ -145,6 +146,7 @@ export type Database = {
           funcao?: string | null
           id: string
           nome: string
+          num_anydesk?: string | null
           setor?: string | null
           telefone?: string | null
           updated_at?: string | null
@@ -156,6 +158,7 @@ export type Database = {
           funcao?: string | null
           id?: string
           nome?: string
+          num_anydesk?: string | null
           setor?: string | null
           telefone?: string | null
           updated_at?: string | null

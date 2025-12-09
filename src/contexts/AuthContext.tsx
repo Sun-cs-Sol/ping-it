@@ -12,6 +12,7 @@ interface Profile {
   funcao: string | null;
   setor: string | null;
   foto_perfil: string | null;
+  num_anydesk: string | null;
 }
 
 interface AuthContextType {
@@ -122,6 +123,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         emailRedirectTo: redirectUrl,
         data: {
           nome: profileData.nome,
+          telefone: profileData.telefone,
+          funcao: profileData.funcao,
+          setor: profileData.setor,
+          num_anydesk: profileData.num_anydesk,
         },
       },
     });

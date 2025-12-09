@@ -23,7 +23,11 @@ interface NotificationRequest {
     titulo: string;
     descricao?: string;
     newStatus?: string;
+    prioridade?: string;
     solicitante?: string;
+    solicitante_email?: string;
+    solicitante_telefone?: string;
+    solicitante_anydesk?: string;
   };
   recipient: {
     email: string;
@@ -105,31 +109,58 @@ const getEmailTemplate = (type: NotificationType, ticket: NotificationRequest["t
       };
 
     case "new_ticket_alert":
+      const priorityLabels: Record<string, string> = {
+        baixa: "Baixa (Tranquila)",
+        media: "Média",
+        alta: "Alta (Urgente)",
+        critica: "Crítica (Interrupção)",
+      };
+      const priorityColors: Record<string, string> = {
+        baixa: "#4CAF50",
+        media: "#FFC107",
+        alta: "#FF9800",
+        critica: "#F44336",
+      };
+      const priorityKey = (ticket.prioridade || 'media') as string;
+      const priorityLabel = priorityLabels[priorityKey] || "Média";
+      const priorityColor = priorityColors[priorityKey] || "#FFC107";
+
       return {
-        subject: `🔔 Novo ticket: ${ticket.titulo}`,
+        subject: `🔔 NOVO CHAMADO - Prioridade: ${priorityLabel} - ${ticket.titulo}`,
         html: `
           <div style="${containerStyle}">
             <div style="${headerStyle}">
-              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Help Desk - Grupo Astrotur</h1>
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">ALERTA TI - GRUPO ASTROTUR</h1>
             </div>
             <div style="padding: 30px;">
-              <h2 style="color: #333; margin-top: 0;">Novo Ticket Aberto</h2>
+              <h2 style="color: #333; margin-top: 0;">Novo Chamado Aberto: ${ticket.titulo}</h2>
               <p style="color: #666; line-height: 1.6;">
-                Olá, ${recipientName}! Um novo ticket de suporte foi aberto e precisa de atenção.
+                Olá, ${recipientName}! Um novo chamado de suporte foi aberto e exige sua atenção imediata.
               </p>
-              <div style="background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; margin: 20px 0;">
+              <div style="background-color: #fff3e0; border-left: 4px solid ${priorityColor}; padding: 15px; margin: 20px 0;">
                 <p style="margin: 5px 0; color: #333;"><strong>Protocolo:</strong> ${ticket.protocolo}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>Título:</strong> ${ticket.titulo}</p>
-                <p style="margin: 5px 0; color: #333;"><strong>Solicitante:</strong> ${ticket.solicitante || "Não informado"}</p>
+                <p style="margin: 5px 0; color: #333;">
+                  <strong>Prioridade:</strong> 
+                  <span style="color: #ffffff; background-color: ${priorityColor}; padding: 3px 8px; border-radius: 4px; font-weight: bold;">
+                    ${priorityLabel}
+                  </span>
+                </p>
+              </div>
+              <h3 style="color: #333; margin-top: 30px; margin-bottom: 10px;">Dados de Contato do Solicitante</h3>
+              <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <p style="margin: 5px 0; color: #333;"><strong>Nome:</strong> ${ticket.solicitante || "Não informado"}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>E-mail:</strong> ${ticket.solicitante_email || "Não informado"}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>Telefone:</strong> ${ticket.solicitante_telefone || "Não informado"}</p>
+                <p style="margin: 5px 0; color: #333;"><strong>Número AnyDesk:</strong> ${ticket.solicitante_anydesk || "Não informado"}</p>
               </div>
               ${ticket.descricao ? `
+                <h3 style="color: #333; margin-top: 30px; margin-bottom: 10px;">Descrição do Chamado</h3>
                 <div style="background-color: #f9f9f9; border-radius: 8px; padding: 15px; margin: 20px 0;">
-                  <p style="margin: 0 0 10px 0; color: #333; font-weight: 600;">Descrição:</p>
                   <p style="margin: 0; color: #666; white-space: pre-wrap;">${ticket.descricao.substring(0, 300)}${ticket.descricao.length > 300 ? "..." : ""}</p>
                 </div>
               ` : ""}
               <div style="text-align: center;">
-                <a href="${ticketUrl}" style="${buttonStyle}">Atender Ticket</a>
+                <a href="${ticketUrl}" style="${buttonStyle}">Visualizar e Atender Chamado</a>
               </div>
             </div>
             <div style="${footerStyle}">
