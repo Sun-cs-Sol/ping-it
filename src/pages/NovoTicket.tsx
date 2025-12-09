@@ -9,6 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { 
   ArrowLeft, 
   Camera, 
   Paperclip, 
@@ -18,7 +25,8 @@ import {
   Loader2,
   FileText,
   Image as ImageIcon,
-  Send
+  Send,
+  AlertTriangle
 } from 'lucide-react';
 import { z } from 'zod';
 
@@ -40,6 +48,7 @@ export default function NovoTicket() {
   
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
+  const [prioridade, setPrioridade] = useState<'baixa' | 'media' | 'alta' | 'critica'>('media');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -120,6 +129,22 @@ export default function NovoTicket() {
     setAudioBlob(null);
   };
 
+  // Função para sanitizar nome de arquivo para o Storage
+  const sanitizeFileName = (fileName: string): string => {
+    const lastDot = fileName.lastIndexOf('.');
+    const name = lastDot > 0 ? fileName.substring(0, lastDot) : fileName;
+    const extension = lastDot > 0 ? fileName.substring(lastDot) : '';
+    
+    const sanitized = name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+      .replace(/\s+/g, '_')            // Espaços -> underscores
+      .replace(/[^a-zA-Z0-9_-]/g, '')  // Remove caracteres especiais
+      .toLowerCase();
+    
+    return sanitized + extension.toLowerCase();
+  };
+
   // Upload file and return only the storage path (not public URL)
   const uploadFile = async (file: File | Blob, path: string): Promise<string> => {
     const { data, error } = await supabase.storage
@@ -167,7 +192,8 @@ export default function NovoTicket() {
 
       for (const attachment of attachments) {
         const timestamp = Date.now();
-        const path = `${user.id}/${timestamp}-${attachment.file.name}`;
+        const sanitizedName = sanitizeFileName(attachment.file.name);
+        const path = `${user.id}/${timestamp}-${sanitizedName}`;
         const storagePath = await uploadFile(attachment.file, path);
 
         if (attachment.type === 'image') {
@@ -191,6 +217,7 @@ export default function NovoTicket() {
           titulo,
           descricao,
           setor: profile?.setor || null,
+          prioridade,
           anexos: {
             imagens: uploadedImages,
             arquivos: uploadedFiles,
@@ -217,37 +244,29 @@ export default function NovoTicket() {
         // Don't fail ticket creation if email fails
       }
 
-      // Send alert to IT agents and admins
+      // Send alert to IT team at fixed email
       try {
-        const { data: itStaff } = await supabase
-          .from('profiles')
-          .select('email, nome')
-          .in('id', 
-            (await supabase
-              .from('user_roles')
-              .select('user_id')
-              .in('role', ['admin', 'agente_ti'])
-            ).data?.map(r => r.user_id) || []
-          );
-
-        if (itStaff && itStaff.length > 0) {
-          for (const agent of itStaff) {
-            await supabase.functions.invoke('send-notification', {
-              body: {
-                type: 'new_ticket_alert',
-                ticket: { 
-                  id: data.id, 
-                  protocolo: data.protocolo, 
-                  titulo, 
-                  descricao,
-                  solicitante: profile?.nome || user.email 
-                },
-                recipient: { email: agent.email, name: agent.nome },
-              },
-            });
-          }
-          console.log(`[NovoTicket] Alert sent to ${itStaff.length} IT staff members`);
-        }
+        await supabase.functions.invoke('send-notification', {
+          body: {
+            type: 'new_ticket_alert',
+            ticket: { 
+              id: data.id, 
+              protocolo: data.protocolo, 
+              titulo, 
+              descricao,
+              prioridade,
+              solicitante: profile?.nome || user.email,
+              solicitante_email: user.email,
+              solicitante_telefone: profile?.telefone || 'Não informado',
+              solicitante_anydesk: profile?.num_anydesk || 'Não informado',
+            },
+            recipient: { 
+              email: 'ti@astoturviagens.com',
+              name: 'Equipe TI' 
+            },
+          },
+        });
+        console.log(`[NovoTicket] Alert sent to ti@astoturviagens.com`);
       } catch (alertError) {
         console.error('[NovoTicket] Error sending IT alert:', alertError);
         // Don't fail ticket creation if alert fails
@@ -340,6 +359,26 @@ export default function NovoTicket() {
                 <p className="text-xs text-muted-foreground">
                   {descricao.length}/2000 caracteres
                 </p>
+              </div>
+
+              {/* Prioridade */}
+              <div className="space-y-2">
+                <Label htmlFor="prioridade">Prioridade *</Label>
+                <Select
+                  value={prioridade}
+                  onValueChange={(value) => setPrioridade(value as 'baixa' | 'media' | 'alta' | 'critica')}
+                >
+                  <SelectTrigger className="w-full">
+                    <AlertTriangle className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Selecione a Prioridade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa (Tranquila)</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta (Urgente)</SelectItem>
+                    <SelectItem value="critica">Crítica (Interrupção de Serviço)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Anexos */}

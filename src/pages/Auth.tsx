@@ -23,6 +23,7 @@ const signupSchema = z.object({
   telefone: z.string().optional(),
   funcao: z.string().optional(),
   setor: z.string().optional(),
+  num_anydesk: z.string().optional(),
 });
 
 const SETORES = [
@@ -54,6 +55,7 @@ export default function Auth() {
   const [signupTelefone, setSignupTelefone] = useState('');
   const [signupFuncao, setSignupFuncao] = useState('');
   const [signupSetor, setSignupSetor] = useState('');
+  const [signupNumAnyDesk, setSignupNumAnyDesk] = useState('');
 
   const { signIn, signUp, signInWithGoogle, user, role } = useAuth();
   const navigate = useNavigate();
@@ -127,6 +129,7 @@ export default function Auth() {
         telefone: signupTelefone,
         funcao: signupFuncao,
         setor: signupSetor,
+        num_anydesk: signupNumAnyDesk,
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -149,6 +152,7 @@ export default function Auth() {
           telefone: signupTelefone || null,
           funcao: signupFuncao || null,
           setor: signupSetor || null,
+          num_anydesk: signupNumAnyDesk || null,
         },
         inviteToken || undefined
       );
@@ -405,6 +409,20 @@ export default function Auth() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-anydesk">Número AnyDesk</Label>
+                    <div className="relative">
+                      <Briefcase className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signup-anydesk"
+                        type="text"
+                        placeholder="Ex: 123 456 789"
+                        value={signupNumAnyDesk}
+                        onChange={(e) => setSignupNumAnyDesk(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (
