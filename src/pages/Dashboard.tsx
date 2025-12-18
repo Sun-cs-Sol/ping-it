@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Ticket, 
   Clock, 
@@ -16,14 +17,16 @@ import {
   LogOut,
   User,
   Loader2,
-  BarChart3,
-  Users,
   Star,
-  Filter,
-  Settings
+  Settings,
+  Monitor,
+  Wrench,
+  Plus
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { TicketFilters } from '@/components/tickets/TicketFilters';
+import { BulkActions } from '@/components/tickets/BulkActions';
 
 type TicketStatus = 'aberto' | 'em_andamento' | 'aguardando_resposta' | 'resolvido' | 'fechado';
 
@@ -34,6 +37,8 @@ interface TicketData {
   status: TicketStatus;
   prioridade: string;
   setor: string | null;
+  tipo: string | null;
+  categoria: string | null;
   created_at: string;
   solicitante: {
     id: string;
@@ -60,15 +65,37 @@ const priorityColors: Record<string, string> = {
 export default function Dashboard() {
   const { user, profile, role, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [tipoFilter, setTipoFilter] = useState<string>('all');
+  const [periodoInicio, setPeriodoInicio] = useState('');
+  const [periodoFim, setPeriodoFim] = useState('');
+  const [setorFilter, setSetorFilter] = useState('all');
+  const [ratingMin, setRatingMin] = useState<number | undefined>(undefined);
+  
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
   const [stats, setStats] = useState({
     novosHoje: 0,
     emAtendimento: 0,
     resolvidos: 0,
     satisfacaoMedia: 0,
   });
+
+  // Determine team type based on role
+  const getTeamType = () => {
+    if (role === 'agente_ti') return 'TI';
+    if (role === 'agente_manutencao') return 'Manutenção predial';
+    return null; // admin sees all
+  };
+  
+  const teamType = getTeamType();
+  const teamLabel = role === 'agente_manutencao' ? 'Manutenção' : role === 'agente_ti' ? 'TI' : 'Administrador';
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -83,11 +110,11 @@ export default function Dashboard() {
   }, [role, authLoading, navigate]);
 
   useEffect(() => {
-    if (user && (role === 'agente_ti' || role === 'admin')) {
+    if (user && (role === 'agente_ti' || role === 'agente_manutencao' || role === 'admin')) {
       fetchTickets();
       fetchStats();
     }
-  }, [user, role, statusFilter]);
+  }, [user, role, statusFilter, tipoFilter, periodoInicio, periodoFim, setorFilter]);
 
   const fetchTickets = async () => {
     try {
@@ -100,16 +127,38 @@ export default function Dashboard() {
           status,
           prioridade,
           setor,
+          tipo,
+          categoria,
           created_at,
           solicitante_id
         `)
         .order('created_at', { ascending: false });
 
+      // Filter by team type for non-admin roles
+      if (teamType) {
+        query = query.eq('tipo', teamType);
+      } else if (tipoFilter !== 'all') {
+        // Admin can filter by type
+        query = query.eq('tipo', tipoFilter);
+      }
+
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as TicketStatus);
       }
+      
+      if (periodoInicio) {
+        query = query.gte('created_at', periodoInicio);
+      }
+      
+      if (periodoFim) {
+        query = query.lte('created_at', periodoFim + 'T23:59:59');
+      }
+      
+      if (setorFilter !== 'all') {
+        query = query.eq('setor', setorFilter);
+      }
 
-      const { data: ticketsData, error } = await query.limit(50);
+      const { data: ticketsData, error } = await query.limit(100);
 
       if (error) throw error;
 
@@ -135,6 +184,7 @@ export default function Dashboard() {
       }));
 
       setTickets(ticketsWithSolicitante as unknown as TicketData[]);
+      setSelectedIds([]);
     } catch (error) {
       console.error('Error fetching tickets:', error);
     } finally {
@@ -147,25 +197,39 @@ export default function Dashboard() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      // Build base query with team filter
+      const buildQuery = (baseQuery: any) => {
+        if (teamType) {
+          return baseQuery.eq('tipo', teamType);
+        }
+        return baseQuery;
+      };
+
       // New tickets today
-      const { count: novosHoje } = await supabase
+      let novosQuery = supabase
         .from('tickets')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', today.toISOString());
+      novosQuery = buildQuery(novosQuery);
+      const { count: novosHoje } = await novosQuery;
 
       // In progress
-      const { count: emAtendimento } = await supabase
+      let emAtendimentoQuery = supabase
         .from('tickets')
         .select('*', { count: 'exact', head: true })
         .in('status', ['em_andamento', 'aguardando_resposta']);
+      emAtendimentoQuery = buildQuery(emAtendimentoQuery);
+      const { count: emAtendimento } = await emAtendimentoQuery;
 
       // Resolved this month
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const { count: resolvidos } = await supabase
+      let resolvidosQuery = supabase
         .from('tickets')
         .select('*', { count: 'exact', head: true })
         .in('status', ['resolvido', 'fechado'])
         .gte('updated_at', firstDayOfMonth.toISOString());
+      resolvidosQuery = buildQuery(resolvidosQuery);
+      const { count: resolvidos } = await resolvidosQuery;
 
       // Average satisfaction
       const { data: feedbacks } = await supabase
@@ -191,6 +255,48 @@ export default function Dashboard() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+  
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(i => i !== id)
+        : [...prev, id]
+    );
+  };
+  
+  const handleSelectAll = () => {
+    setSelectedIds(tickets.map(t => t.id));
+  };
+  
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+  
+  const handleDelete = async () => {
+    try {
+      const { error } = await supabase
+        .from('tickets')
+        .delete()
+        .in('id', selectedIds);
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Tickets excluídos',
+        description: `${selectedIds.length} ticket(s) excluído(s) com sucesso`,
+      });
+      
+      fetchTickets();
+      fetchStats();
+    } catch (error) {
+      console.error('Error deleting tickets:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível excluir os tickets',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (authLoading) {
@@ -219,8 +325,13 @@ export default function Dashboard() {
           </div>
           
           <div className="flex items-center gap-4">
-            <Badge variant="outline" className="hidden sm:flex">
-              {role === 'admin' ? 'Administrador' : 'Agente TI'}
+            <Badge variant="outline" className="hidden sm:flex gap-1">
+              {role === 'agente_manutencao' ? (
+                <Wrench className="h-3 w-3" />
+              ) : role === 'agente_ti' ? (
+                <Monitor className="h-3 w-3" />
+              ) : null}
+              {teamLabel}
             </Badge>
             {role === 'admin' && (
               <Link to="/admin">
@@ -303,24 +414,38 @@ export default function Dashboard() {
               <CardTitle>Tickets</CardTitle>
               <CardDescription>Gerencie as solicitações de suporte</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="aberto">Abertos</SelectItem>
-                  <SelectItem value="em_andamento">Em Andamento</SelectItem>
-                  <SelectItem value="aguardando_resposta">Aguardando</SelectItem>
-                  <SelectItem value="resolvido">Resolvidos</SelectItem>
-                  <SelectItem value="fechado">Fechados</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <TicketFilters
+              statusFilter={statusFilter}
+              onStatusChange={setStatusFilter}
+              tipoFilter={tipoFilter}
+              onTipoChange={setTipoFilter}
+              periodoInicio={periodoInicio}
+              onPeriodoInicioChange={setPeriodoInicio}
+              periodoFim={periodoFim}
+              onPeriodoFimChange={setPeriodoFim}
+              setorFilter={setorFilter}
+              onSetorChange={setSetorFilter}
+              ratingMin={ratingMin}
+              onRatingMinChange={setRatingMin}
+              showTipoFilter={role === 'admin'} // Only admin can filter by type
+              showAdvancedFilters={true}
+            />
           </CardHeader>
           <CardContent>
+            {/* Bulk Actions */}
+            {selectedIds.length > 0 && (
+              <div className="mb-4">
+                <BulkActions
+                  selectedIds={selectedIds}
+                  totalCount={tickets.length}
+                  onSelectAll={handleSelectAll}
+                  onDeselectAll={handleDeselectAll}
+                  onDelete={handleDelete}
+                  isAllSelected={selectedIds.length === tickets.length}
+                />
+              </div>
+            )}
+            
             {loading ? (
               <div className="space-y-4">
                 {[1, 2, 3, 4, 5].map((i) => (
@@ -344,43 +469,76 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {tickets.map((ticket) => (
-                  <Link
+                  <div
                     key={ticket.id}
-                    to={`/ticket/${ticket.id}`}
                     className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-accent"
                   >
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={ticket.solicitante?.foto_perfil || undefined} />
-                      <AvatarFallback className="bg-muted">
-                        {ticket.solicitante?.nome?.charAt(0).toUpperCase() || <User className="h-4 w-4" />}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-mono text-muted-foreground">
-                          {ticket.protocolo}
-                        </span>
-                        <Badge className={statusConfig[ticket.status].color}>
-                          {statusConfig[ticket.status].label}
-                        </Badge>
-                        <Badge className={priorityColors[ticket.prioridade]}>
-                          {ticket.prioridade.charAt(0).toUpperCase() + ticket.prioridade.slice(1)}
-                        </Badge>
+                    <Checkbox
+                      checked={selectedIds.includes(ticket.id)}
+                      onCheckedChange={() => toggleSelection(ticket.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <Link
+                      to={`/ticket/${ticket.id}`}
+                      className="flex flex-1 items-center gap-4"
+                    >
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={ticket.solicitante?.foto_perfil || undefined} />
+                        <AvatarFallback className="bg-muted">
+                          {ticket.solicitante?.nome?.charAt(0).toUpperCase() || <User className="h-4 w-4" />}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {ticket.protocolo}
+                          </span>
+                          <Badge className={statusConfig[ticket.status].color}>
+                            {statusConfig[ticket.status].label}
+                          </Badge>
+                          <Badge className={priorityColors[ticket.prioridade]}>
+                            {ticket.prioridade.charAt(0).toUpperCase() + ticket.prioridade.slice(1)}
+                          </Badge>
+                          {ticket.tipo && (
+                            <Badge variant="outline" className="text-xs">
+                              {ticket.tipo === 'Manutenção predial' ? (
+                                <><Wrench className="mr-1 h-3 w-3" />Manutenção</>
+                              ) : (
+                                <><Monitor className="mr-1 h-3 w-3" />{ticket.tipo}</>
+                              )}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 truncate font-medium">{ticket.titulo}</p>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{ticket.solicitante?.nome || 'Usuário'}</span>
+                          {ticket.categoria && <span>• {ticket.categoria}</span>}
+                          {ticket.setor && <span>• {ticket.setor}</span>}
+                          <span>• {format(new Date(ticket.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
+                        </div>
                       </div>
-                      <p className="mt-1 truncate font-medium">{ticket.titulo}</p>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{ticket.solicitante?.nome || 'Usuário'}</span>
-                        {ticket.setor && <span>• {ticket.setor}</span>}
-                        <span>• {format(new Date(ticket.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
-                      </div>
-                    </div>
-                  </Link>
+                    </Link>
+                  </div>
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
       </main>
+      
+      {/* Floating Action Button for agents */}
+      <Link
+        to="/novo-ticket"
+        className="fixed bottom-6 right-6 z-50"
+      >
+        <Button 
+          size="lg" 
+          className="h-14 gap-2 rounded-full px-6 shadow-lg transition-transform hover:scale-105"
+        >
+          <Plus className="h-5 w-5" />
+          <span className="hidden sm:inline">Novo Ticket</span>
+        </Button>
+      </Link>
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, 
   Ticket, 
@@ -15,10 +17,14 @@ import {
   AlertCircle,
   LogOut,
   User,
-  Loader2
+  Loader2,
+  Monitor,
+  Wrench
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { TicketFilters } from '@/components/tickets/TicketFilters';
+import { BulkActions } from '@/components/tickets/BulkActions';
 
 type TicketStatus = 'aberto' | 'em_andamento' | 'aguardando_resposta' | 'resolvido' | 'fechado';
 
@@ -28,6 +34,8 @@ interface TicketData {
   titulo: string;
   status: TicketStatus;
   prioridade: string;
+  tipo: string | null;
+  categoria: string | null;
   created_at: string;
 }
 
@@ -42,6 +50,7 @@ const statusConfig: Record<TicketStatus, { label: string; color: string; icon: R
 export default function Index() {
   const { user, profile, role, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -49,6 +58,15 @@ export default function Index() {
     emAndamento: 0,
     resolvidos: 0,
   });
+  
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [tipoFilter, setTipoFilter] = useState('all');
+  const [periodoInicio, setPeriodoInicio] = useState('');
+  const [periodoFim, setPeriodoFim] = useState('');
+  
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -58,7 +76,7 @@ export default function Index() {
 
   useEffect(() => {
     if (!authLoading && role) {
-      if (role === 'agente_ti' || role === 'admin') {
+      if (role === 'agente_ti' || role === 'agente_manutencao' || role === 'admin') {
         navigate('/dashboard');
       }
     }
@@ -68,16 +86,33 @@ export default function Index() {
     if (user) {
       fetchTickets();
     }
-  }, [user]);
+  }, [user, statusFilter, tipoFilter, periodoInicio, periodoFim]);
 
   const fetchTickets = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('tickets')
-        .select('id, protocolo, titulo, status, prioridade, created_at')
+        .select('id, protocolo, titulo, status, prioridade, tipo, categoria, created_at')
         .eq('solicitante_id', user?.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .order('created_at', { ascending: false });
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter as TicketStatus);
+      }
+      
+      if (tipoFilter !== 'all') {
+        query = query.eq('tipo', tipoFilter);
+      }
+      
+      if (periodoInicio) {
+        query = query.gte('created_at', periodoInicio);
+      }
+      
+      if (periodoFim) {
+        query = query.lte('created_at', periodoFim + 'T23:59:59');
+      }
+
+      const { data, error } = await query.limit(50);
 
       if (error) throw error;
 
@@ -89,6 +124,9 @@ export default function Index() {
       const emAndamento = ticketsData.filter(t => ['em_andamento', 'aguardando_resposta'].includes(t.status)).length;
       const resolvidos = ticketsData.filter(t => ['resolvido', 'fechado'].includes(t.status)).length;
       setStats({ abertos, emAndamento, resolvidos });
+      
+      // Clear selections
+      setSelectedIds([]);
     } catch (error) {
       console.error('Error fetching tickets:', error);
     } finally {
@@ -99,6 +137,47 @@ export default function Index() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+  
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(i => i !== id)
+        : [...prev, id]
+    );
+  };
+  
+  const handleSelectAll = () => {
+    setSelectedIds(tickets.map(t => t.id));
+  };
+  
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+  
+  const handleDelete = async () => {
+    try {
+      const { error } = await supabase
+        .from('tickets')
+        .delete()
+        .in('id', selectedIds);
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Tickets excluídos',
+        description: `${selectedIds.length} ticket(s) excluído(s) com sucesso`,
+      });
+      
+      fetchTickets();
+    } catch (error) {
+      console.error('Error deleting tickets:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível excluir os tickets',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (authLoading) {
@@ -172,14 +251,39 @@ export default function Index() {
 
         {/* Tickets List */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Meus Tickets</CardTitle>
               <CardDescription>Suas solicitações recentes</CardDescription>
             </div>
-{/* Link removido - página /tickets não existe */}
+            <TicketFilters
+              statusFilter={statusFilter}
+              onStatusChange={setStatusFilter}
+              tipoFilter={tipoFilter}
+              onTipoChange={setTipoFilter}
+              periodoInicio={periodoInicio}
+              onPeriodoInicioChange={setPeriodoInicio}
+              periodoFim={periodoFim}
+              onPeriodoFimChange={setPeriodoFim}
+              showTipoFilter={true}
+              showAdvancedFilters={false}
+            />
           </CardHeader>
           <CardContent>
+            {/* Bulk Actions */}
+            {selectedIds.length > 0 && (
+              <div className="mb-4">
+                <BulkActions
+                  selectedIds={selectedIds}
+                  totalCount={tickets.length}
+                  onSelectAll={handleSelectAll}
+                  onDeselectAll={handleDeselectAll}
+                  onDelete={handleDelete}
+                  isAllSelected={selectedIds.length === tickets.length}
+                />
+              </div>
+            )}
+            
             {loading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
@@ -203,30 +307,49 @@ export default function Index() {
             ) : (
               <div className="space-y-3">
                 {tickets.map((ticket) => (
-                  <Link
+                  <div
                     key={ticket.id}
-                    to={`/ticket/${ticket.id}`}
                     className="flex items-center gap-4 rounded-lg border p-4 transition-colors hover:bg-accent"
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      <Ticket className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-muted-foreground">
-                          {ticket.protocolo}
-                        </span>
-                        <Badge className={statusConfig[ticket.status].color}>
-                          {statusConfig[ticket.status].icon}
-                          <span className="ml-1">{statusConfig[ticket.status].label}</span>
-                        </Badge>
+                    <Checkbox
+                      checked={selectedIds.includes(ticket.id)}
+                      onCheckedChange={() => toggleSelection(ticket.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <Link
+                      to={`/ticket/${ticket.id}`}
+                      className="flex flex-1 items-center gap-4"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                        {ticket.tipo === 'Manutenção predial' ? (
+                          <Wrench className="h-5 w-5 text-primary" />
+                        ) : (
+                          <Monitor className="h-5 w-5 text-primary" />
+                        )}
                       </div>
-                      <p className="mt-1 truncate font-medium">{ticket.titulo}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(ticket.created_at), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-                      </p>
-                    </div>
-                  </Link>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {ticket.protocolo}
+                          </span>
+                          <Badge className={statusConfig[ticket.status].color}>
+                            {statusConfig[ticket.status].icon}
+                            <span className="ml-1">{statusConfig[ticket.status].label}</span>
+                          </Badge>
+                          {ticket.tipo && (
+                            <Badge variant="outline" className="text-xs">
+                              {ticket.tipo === 'Manutenção predial' ? 'Manutenção' : ticket.tipo}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 truncate font-medium">{ticket.titulo}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {ticket.categoria && `${ticket.categoria} • `}
+                          {format(new Date(ticket.created_at), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                        </p>
+                      </div>
+                    </Link>
+                  </div>
                 ))}
               </div>
             )}

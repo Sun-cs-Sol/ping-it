@@ -5,17 +5,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Shield, User, UserCog } from 'lucide-react';
+import { Shield, User, UserCog, Wrench } from 'lucide-react';
 
 interface RoleSelectorProps {
-  currentRole: 'solicitante' | 'agente_ti' | 'admin';
-  onRoleChange: (role: 'solicitante' | 'agente_ti' | 'admin') => void;
+  currentRole: 'solicitante' | 'agente_ti' | 'agente_manutencao' | 'admin';
+  onRoleChange: (role: 'solicitante' | 'agente_ti' | 'agente_manutencao' | 'admin') => void;
   disabled?: boolean;
 }
 
 const roleOptions = [
   { value: 'solicitante', label: 'Solicitante', icon: User },
   { value: 'agente_ti', label: 'Agente TI', icon: UserCog },
+  { value: 'agente_manutencao', label: 'Agente Manutenção', icon: Wrench },
   { value: 'admin', label: 'Administrador', icon: Shield },
 ] as const;
 
@@ -23,7 +24,7 @@ export function RoleSelector({ currentRole, onRoleChange, disabled }: RoleSelect
   return (
     <Select
       value={currentRole}
-      onValueChange={(value) => onRoleChange(value as 'solicitante' | 'agente_ti' | 'admin')}
+      onValueChange={(value) => onRoleChange(value as 'solicitante' | 'agente_ti' | 'agente_manutencao' | 'admin')}
       disabled={disabled}
     >
       <SelectTrigger className="w-[160px]">

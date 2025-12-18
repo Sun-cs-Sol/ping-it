@@ -169,8 +169,10 @@ export type Database = {
         Row: {
           agente_id: string | null
           anexos: Json | null
+          categoria: string | null
           closed_at: string | null
           created_at: string | null
+          created_by_id: string | null
           descricao: string
           id: string
           prioridade: Database["public"]["Enums"]["ticket_priority"] | null
@@ -178,14 +180,17 @@ export type Database = {
           setor: string | null
           solicitante_id: string
           status: Database["public"]["Enums"]["ticket_status"] | null
+          tipo: string | null
           titulo: string
           updated_at: string | null
         }
         Insert: {
           agente_id?: string | null
           anexos?: Json | null
+          categoria?: string | null
           closed_at?: string | null
           created_at?: string | null
+          created_by_id?: string | null
           descricao: string
           id?: string
           prioridade?: Database["public"]["Enums"]["ticket_priority"] | null
@@ -193,14 +198,17 @@ export type Database = {
           setor?: string | null
           solicitante_id: string
           status?: Database["public"]["Enums"]["ticket_status"] | null
+          tipo?: string | null
           titulo: string
           updated_at?: string | null
         }
         Update: {
           agente_id?: string | null
           anexos?: Json | null
+          categoria?: string | null
           closed_at?: string | null
           created_at?: string | null
+          created_by_id?: string | null
           descricao?: string
           id?: string
           prioridade?: Database["public"]["Enums"]["ticket_priority"] | null
@@ -208,6 +216,7 @@ export type Database = {
           setor?: string | null
           solicitante_id?: string
           status?: Database["public"]["Enums"]["ticket_status"] | null
+          tipo?: string | null
           titulo?: string
           updated_at?: string | null
         }
@@ -236,10 +245,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_ticket_type: {
+        Args: { _ticket_tipo: string; _user_id: string }
+        Returns: boolean
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_user_team_type: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -249,7 +263,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "solicitante" | "agente_ti" | "admin"
+      app_role: "solicitante" | "agente_ti" | "admin" | "agente_manutencao"
       interaction_type: "texto" | "mudanca_status" | "anexo_extra"
       ticket_priority: "baixa" | "media" | "alta" | "critica"
       ticket_status:
@@ -385,7 +399,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["solicitante", "agente_ti", "admin"],
+      app_role: ["solicitante", "agente_ti", "admin", "agente_manutencao"],
       interaction_type: ["texto", "mudanca_status", "anexo_extra"],
       ticket_priority: ["baixa", "media", "alta", "critica"],
       ticket_status: [
