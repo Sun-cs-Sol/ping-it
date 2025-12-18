@@ -126,6 +126,47 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          lida: boolean | null
+          mensagem: string
+          ticket_id: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          lida?: boolean | null
+          mensagem: string
+          ticket_id?: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          lida?: boolean | null
+          mensagem?: string
+          ticket_id?: string | null
+          tipo?: string
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -248,6 +289,16 @@ export type Database = {
       can_access_ticket_type: {
         Args: { _ticket_tipo: string; _user_id: string }
         Returns: boolean
+      }
+      create_notification: {
+        Args: {
+          p_mensagem: string
+          p_ticket_id?: string
+          p_tipo: string
+          p_titulo: string
+          p_user_id: string
+        }
+        Returns: string
       }
       get_user_role: {
         Args: { _user_id: string }
