@@ -40,6 +40,8 @@ interface TicketData {
   status: TicketStatus;
   prioridade: string;
   setor: string | null;
+  tipo: string | null;
+  categoria: string | null;
   anexos: {
     imagens: string[];
     arquivos: string[];
@@ -184,6 +186,8 @@ export default function TicketDetail() {
           status,
           prioridade,
           setor,
+          tipo,
+          categoria,
           anexos,
           created_at,
           solicitante_id,
@@ -498,6 +502,8 @@ export default function TicketDetail() {
               <span>
                 Aberto em {format(new Date(ticket.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </span>
+              {ticket.tipo && <span>• {ticket.tipo}</span>}
+              {ticket.categoria && <span>• {ticket.categoria}</span>}
               {ticket.setor && <span>• {ticket.setor}</span>}
             </div>
           </CardContent>

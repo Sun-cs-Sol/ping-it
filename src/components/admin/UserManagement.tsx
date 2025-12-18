@@ -19,18 +19,20 @@ interface UserWithRole {
   setor: string | null;
   foto_perfil: string | null;
   created_at: string;
-  role: 'solicitante' | 'agente_ti' | 'admin';
+  role: 'solicitante' | 'agente_ti' | 'agente_manutencao' | 'admin';
 }
 
 const roleLabels: Record<string, string> = {
   solicitante: 'Solicitante',
   agente_ti: 'Agente TI',
+  agente_manutencao: 'Agente Manutenção',
   admin: 'Administrador',
 };
 
 const roleColors: Record<string, string> = {
   solicitante: 'bg-muted text-muted-foreground',
   agente_ti: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  agente_manutencao: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   admin: 'bg-primary/10 text-primary',
 };
 
@@ -68,7 +70,7 @@ export function UserManagement() {
         const userRole = roles?.find((r) => r.user_id === profile.id);
         return {
           ...profile,
-          role: (userRole?.role as 'solicitante' | 'agente_ti' | 'admin') || 'solicitante',
+          role: (userRole?.role as 'solicitante' | 'agente_ti' | 'agente_manutencao' | 'admin') || 'solicitante',
         };
       });
 
@@ -85,7 +87,7 @@ export function UserManagement() {
     }
   };
 
-  const handleRoleChange = async (userId: string, newRole: 'solicitante' | 'agente_ti' | 'admin') => {
+  const handleRoleChange = async (userId: string, newRole: 'solicitante' | 'agente_ti' | 'agente_manutencao' | 'admin') => {
     setUpdatingUserId(userId);
     try {
       // Check if user already has a role entry
@@ -173,6 +175,7 @@ export function UserManagement() {
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="solicitante">Solicitantes</SelectItem>
                 <SelectItem value="agente_ti">Agentes TI</SelectItem>
+                <SelectItem value="agente_manutencao">Agentes Manutenção</SelectItem>
                 <SelectItem value="admin">Administradores</SelectItem>
               </SelectContent>
             </Select>
@@ -252,7 +255,9 @@ export function UserManagement() {
           <span>•</span>
           <span>{users.filter((u) => u.role === 'solicitante').length} solicitantes</span>
           <span>•</span>
-          <span>{users.filter((u) => u.role === 'agente_ti').length} agentes</span>
+          <span>{users.filter((u) => u.role === 'agente_ti').length} agentes TI</span>
+          <span>•</span>
+          <span>{users.filter((u) => u.role === 'agente_manutencao').length} agentes manutenção</span>
           <span>•</span>
           <span>{users.filter((u) => u.role === 'admin').length} admins</span>
         </div>

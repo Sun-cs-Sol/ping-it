@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,9 +26,13 @@ import {
   FileText,
   Image as ImageIcon,
   Send,
-  AlertTriangle
+  AlertTriangle,
+  UserPlus
 } from 'lucide-react';
 import { z } from 'zod';
+import { TicketTypeSelect } from '@/components/tickets/TicketTypeSelect';
+import { CategorySelect } from '@/components/tickets/CategorySelect';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const ticketSchema = z.object({
   titulo: z.string().min(5, 'Título deve ter no mínimo 5 caracteres').max(100, 'Título deve ter no máximo 100 caracteres'),
@@ -42,22 +46,35 @@ interface Attachment {
 }
 
 export default function NovoTicket() {
-  const { user, profile } = useAuth();
+  const { user, profile, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
+  const [tipo, setTipo] = useState<string>('TI');
+  const [categoria, setCategoria] = useState<string>('Outros');
   const [prioridade, setPrioridade] = useState<'baixa' | 'media' | 'alta' | 'critica'>('media');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Create for another user
+  const [createForOther, setCreateForOther] = useState(false);
+  const [solicitanteEmail, setSolicitanteEmail] = useState('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  const isAgentOrAdmin = role === 'agente_ti' || role === 'agente_manutencao' || role === 'admin';
+
+  // Reset categoria when tipo changes
+  useEffect(() => {
+    setCategoria('Outros');
+  }, [tipo]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -182,6 +199,31 @@ export default function NovoTicket() {
       return;
     }
 
+    // Validate solicitante email if creating for another user
+    let solicitanteId = user.id;
+    let solicitanteProfile = profile;
+    
+    if (createForOther && solicitanteEmail) {
+      // Find user by email
+      const { data: foundProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, nome, email, telefone, num_anydesk')
+        .eq('email', solicitanteEmail.toLowerCase().trim())
+        .maybeSingle();
+      
+      if (profileError || !foundProfile) {
+        toast({
+          title: 'Usuário não encontrado',
+          description: `Não foi possível encontrar um usuário com o email "${solicitanteEmail}". A pessoa precisa ter uma conta no sistema.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      solicitanteId = foundProfile.id;
+      solicitanteProfile = foundProfile as typeof profile;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -193,7 +235,7 @@ export default function NovoTicket() {
       for (const attachment of attachments) {
         const timestamp = Date.now();
         const sanitizedName = sanitizeFileName(attachment.file.name);
-        const path = `${user.id}/${timestamp}-${sanitizedName}`;
+        const path = `${solicitanteId}/${timestamp}-${sanitizedName}`;
         const storagePath = await uploadFile(attachment.file, path);
 
         if (attachment.type === 'image') {
@@ -205,7 +247,7 @@ export default function NovoTicket() {
 
       if (audioBlob) {
         const timestamp = Date.now();
-        const path = `${user.id}/${timestamp}-audio.webm`;
+        const path = `${solicitanteId}/${timestamp}-audio.webm`;
         audioPath = await uploadFile(audioBlob, path);
       }
 
@@ -213,10 +255,13 @@ export default function NovoTicket() {
       const { data, error } = await supabase
         .from('tickets')
         .insert({
-          solicitante_id: user.id,
+          solicitante_id: solicitanteId,
+          created_by_id: user.id,
           titulo,
           descricao,
-          setor: profile?.setor || null,
+          tipo,
+          categoria,
+          setor: solicitanteProfile?.setor || null,
           prioridade,
           anexos: {
             imagens: uploadedImages,
@@ -230,21 +275,28 @@ export default function NovoTicket() {
       if (error) throw error;
 
       // Send confirmation email to requester
+      const recipientEmail = createForOther && solicitanteEmail ? solicitanteEmail : user.email;
+      const recipientName = solicitanteProfile?.nome || recipientEmail;
+      
       try {
         await supabase.functions.invoke('send-notification', {
           body: {
             type: 'ticket_created',
             ticket: { id: data.id, protocolo: data.protocolo, titulo },
-            recipient: { email: user.email, name: profile?.nome || user.email },
+            recipient: { email: recipientEmail, name: recipientName },
           },
         });
         console.log('[NovoTicket] Confirmation email sent to requester');
       } catch (emailError) {
         console.error('[NovoTicket] Error sending confirmation email:', emailError);
-        // Don't fail ticket creation if email fails
       }
 
-      // Send alert to IT team at fixed email
+      // Send alert to the appropriate team based on ticket type
+      const teamEmail = tipo === 'Manutenção predial' 
+        ? 'elton@astroturviagens.com'
+        : 'ti@astroturviagens.com';
+      const teamName = tipo === 'Manutenção predial' ? 'Equipe Manutenção' : 'Equipe TI';
+      
       try {
         await supabase.functions.invoke('send-notification', {
           body: {
@@ -255,21 +307,20 @@ export default function NovoTicket() {
               titulo, 
               descricao,
               prioridade,
-              solicitante: profile?.nome || user.email,
-              solicitante_email: user.email,
-              solicitante_telefone: profile?.telefone || 'Não informado',
-              solicitante_anydesk: profile?.num_anydesk || 'Não informado',
+              solicitante: solicitanteProfile?.nome || recipientEmail,
+              solicitante_email: recipientEmail,
+              solicitante_telefone: solicitanteProfile?.telefone || 'Não informado',
+              solicitante_anydesk: solicitanteProfile?.num_anydesk || 'Não informado',
             },
             recipient: { 
-              email: 'ti@astoturviagens.com',
-              name: 'Equipe TI' 
+              email: teamEmail,
+              name: teamName 
             },
           },
         });
-        console.log(`[NovoTicket] Alert sent to ti@astoturviagens.com`);
+        console.log(`[NovoTicket] Alert sent to ${teamEmail}`);
       } catch (alertError) {
-        console.error('[NovoTicket] Error sending IT alert:', alertError);
-        // Don't fail ticket creation if alert fails
+        console.error('[NovoTicket] Error sending team alert:', alertError);
       }
 
       toast({
@@ -283,7 +334,6 @@ export default function NovoTicket() {
       
       let errorMessage = 'Não foi possível criar o ticket. Tente novamente.';
       
-      // Check for network errors
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
       } else if (error instanceof Error && error.message.includes('network')) {
@@ -328,6 +378,52 @@ export default function NovoTicket() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Create for another user (agents/admins only) */}
+              {isAgentOrAdmin && (
+                <div className="space-y-4 rounded-lg border border-dashed p-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="createForOther"
+                      checked={createForOther}
+                      onCheckedChange={(checked) => setCreateForOther(!!checked)}
+                    />
+                    <Label htmlFor="createForOther" className="flex items-center gap-2 cursor-pointer">
+                      <UserPlus className="h-4 w-4" />
+                      Criar ticket para outra pessoa
+                    </Label>
+                  </div>
+                  
+                  {createForOther && (
+                    <div className="space-y-2">
+                      <Label htmlFor="solicitanteEmail">Email do Solicitante *</Label>
+                      <Input
+                        id="solicitanteEmail"
+                        type="email"
+                        placeholder="email@empresa.com"
+                        value={solicitanteEmail}
+                        onChange={(e) => setSolicitanteEmail(e.target.value)}
+                        required={createForOther}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        O usuário precisa ter uma conta no sistema
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tipo */}
+              <div className="space-y-2">
+                <Label htmlFor="tipo">Tipo de Solicitação *</Label>
+                <TicketTypeSelect value={tipo} onValueChange={setTipo} />
+              </div>
+
+              {/* Categoria */}
+              <div className="space-y-2">
+                <Label htmlFor="categoria">Categoria *</Label>
+                <CategorySelect tipo={tipo} value={categoria} onValueChange={setCategoria} />
+              </div>
+
               {/* Título */}
               <div className="space-y-2">
                 <Label htmlFor="titulo">Título do Problema *</Label>
@@ -499,28 +595,21 @@ export default function NovoTicket() {
                     </div>
                   </div>
                 )}
-
-                {isRecording && (
-                  <div className="flex items-center gap-2 rounded-lg border border-destructive bg-destructive/10 p-3">
-                    <div className="h-3 w-3 animate-pulse rounded-full bg-destructive" />
-                    <span className="text-sm text-destructive">Gravando áudio...</span>
-                  </div>
-                )}
               </div>
 
-              {/* Submit */}
-              <Button
-                type="submit"
-                className="w-full"
-                size="lg"
-                disabled={isSubmitting}
-              >
+              {/* Submit Button */}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
                 ) : (
-                  <Send className="mr-2 h-5 w-5" />
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Enviar Solicitação
+                  </>
                 )}
-                Enviar Solicitação
               </Button>
             </form>
           </CardContent>
