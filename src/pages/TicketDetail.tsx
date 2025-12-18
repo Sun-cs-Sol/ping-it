@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { 
   ArrowLeft, 
   Send, 
@@ -422,12 +423,15 @@ export default function TicketDetail() {
             </div>
             <h1 className="truncate text-lg font-semibold">{ticket.titulo}</h1>
           </div>
-          {canEvaluate && (
-            <Button onClick={() => setShowFeedback(true)} variant="outline" size="sm">
-              <Star className="mr-2 h-4 w-4" />
-              Avaliar
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            {canEvaluate && (
+              <Button onClick={() => setShowFeedback(true)} variant="outline" size="sm">
+                <Star className="mr-2 h-4 w-4" />
+                Avaliar
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 

@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { 
   Plus, 
   Ticket, 
@@ -206,6 +207,7 @@ export default function Index() {
           </div>
           
           <div className="flex items-center gap-4">
+            <NotificationBell />
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={profile?.foto_perfil || undefined} />

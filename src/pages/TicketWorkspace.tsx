@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { 
   ArrowLeft, 
   Send, 
@@ -463,6 +464,7 @@ export default function TicketWorkspace() {
             </div>
             <h1 className="truncate text-lg font-semibold">{ticket.titulo}</h1>
           </div>
+          <NotificationBell />
         </div>
       </header>
 
