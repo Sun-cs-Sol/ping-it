@@ -9,8 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   ArrowLeft, 
   Send, 
@@ -25,7 +27,8 @@ import {
   Phone,
   Building,
   Briefcase,
-  Mail
+  Mail,
+  Settings2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -113,7 +116,7 @@ export default function TicketWorkspace() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!user || (role !== 'agente_ti' && role !== 'admin')) {
+    if (!user || (role !== 'agente_ti' && role !== 'agente_manutencao' && role !== 'admin')) {
       navigate('/');
       return;
     }
@@ -464,7 +467,85 @@ export default function TicketWorkspace() {
             </div>
             <h1 className="truncate text-lg font-semibold">{ticket.titulo}</h1>
           </div>
-          <NotificationBell />
+          <div className="flex items-center gap-2">
+            {/* Mobile Controls Button */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="lg:hidden">
+                  <Settings2 className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-80">
+                <SheetHeader>
+                  <SheetTitle>Gerenciar Ticket</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6 space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Status</label>
+                    <Select
+                      value={ticket.status}
+                      onValueChange={(value) => updateStatus(value as TicketStatus)}
+                      disabled={updatingStatus}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aberto">Aberto</SelectItem>
+                        <SelectItem value="em_andamento">Em Andamento</SelectItem>
+                        <SelectItem value="aguardando_resposta">Aguardando Resposta</SelectItem>
+                        <SelectItem value="resolvido">Resolvido</SelectItem>
+                        <SelectItem value="fechado">Fechado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Prioridade</label>
+                    <Select
+                      value={ticket.prioridade}
+                      onValueChange={(value) => updatePriority(value as TicketPriority)}
+                      disabled={updatingPriority}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="baixa">Baixa</SelectItem>
+                        <SelectItem value="media">Média</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="critica">Crítica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Badge className={statusConfig[ticket.status].color}>
+                      {statusConfig[ticket.status].label}
+                    </Badge>
+                    <Badge className={priorityConfig[ticket.prioridade].color}>
+                      {priorityConfig[ticket.prioridade].label}
+                    </Badge>
+                  </div>
+                  <div className="border-t pt-4 space-y-3">
+                    <p className="text-sm font-medium">Solicitante</p>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={ticket.solicitante?.foto_perfil || undefined} />
+                        <AvatarFallback className="bg-muted">
+                          {ticket.solicitante?.nome?.charAt(0).toUpperCase() || <User className="h-4 w-4" />}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-sm">{ticket.solicitante?.nome || 'Usuário'}</p>
+                        <p className="text-xs text-muted-foreground">{ticket.solicitante?.funcao || ''}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
         </div>
       </header>
 

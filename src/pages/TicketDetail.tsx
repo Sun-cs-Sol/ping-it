@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   ArrowLeft, 
   Send, 
@@ -424,6 +425,7 @@ export default function TicketDetail() {
             <h1 className="truncate text-lg font-semibold">{ticket.titulo}</h1>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <NotificationBell />
             {canEvaluate && (
               <Button onClick={() => setShowFeedback(true)} variant="outline" size="sm">

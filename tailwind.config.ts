@@ -57,6 +57,21 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Status colors
+        status: {
+          open: "hsl(var(--status-open))",
+          "in-progress": "hsl(var(--status-in-progress))",
+          waiting: "hsl(var(--status-waiting))",
+          resolved: "hsl(var(--status-resolved))",
+          closed: "hsl(var(--status-closed))",
+        },
+        // Priority colors
+        priority: {
+          low: "hsl(var(--priority-low))",
+          medium: "hsl(var(--priority-medium))",
+          high: "hsl(var(--priority-high))",
+          critical: "hsl(var(--priority-critical))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
