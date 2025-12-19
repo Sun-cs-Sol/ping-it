@@ -169,14 +169,14 @@ export function TicketFilters({
                 <div className="space-y-2">
                   <Label>Avaliação Mínima</Label>
                   <Select 
-                    value={ratingMin?.toString() || ''} 
-                    onValueChange={(v) => onRatingMinChange(v ? parseInt(v) : undefined)}
+                    value={ratingMin?.toString() || 'any'} 
+                    onValueChange={(v) => onRatingMinChange(v === 'any' ? undefined : parseInt(v))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Qualquer" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Qualquer</SelectItem>
+                      <SelectItem value="any">Qualquer</SelectItem>
                       <SelectItem value="1">1+ estrela</SelectItem>
                       <SelectItem value="2">2+ estrelas</SelectItem>
                       <SelectItem value="3">3+ estrelas</SelectItem>
