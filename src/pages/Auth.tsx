@@ -27,13 +27,23 @@ const signupSchema = z.object({
 });
 
 const SETORES = [
-  'Administrativo',
-  'Comercial',
+  'Comercial/Fretamento',
+  'Comercial/Turismo',
+  'Diretoria',
+  'DP',
   'Financeiro',
+  'Jurídico',
+  'Manutenção',
   'Marketing',
   'Operações',
+  'Portaria',
+  'Posto',
+  'Qualidade',
   'Recursos Humanos',
+  'Segurança do Trabalho',
   'TI',
+  'Tráfego',
+  'Transastro',
   'Outro',
 ];
 
