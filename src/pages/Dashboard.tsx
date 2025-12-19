@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   Ticket, 
   Clock, 
@@ -345,6 +346,7 @@ export default function Dashboard() {
                 </Button>
               </Link>
             )}
+            <ThemeToggle />
             <NotificationBell />
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
@@ -481,7 +483,7 @@ export default function Dashboard() {
                       onClick={(e) => e.stopPropagation()}
                     />
                     <Link
-                      to={`/ticket/${ticket.id}`}
+                      to={`/workspace/${ticket.id}`}
                       className="flex flex-1 items-center gap-4"
                     >
                       <Avatar className="h-10 w-10">
